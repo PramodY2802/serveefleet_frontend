@@ -1,0 +1,334 @@
+/* 
+
+.users-container {
+  min-height: 100vh;
+  padding: 60px 30px;
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+  animation: fadeInPage 0.6s ease-in-out;
+}
+
+.users-title {
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: #2c3e50;
+  text-align: center;
+  margin-bottom: 40px;
+  animation: slideDown 0.7s ease-in-out;
+}
+
+.users-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px;
+  justify-content: center;
+}
+
+.user-card {
+  background: white;
+  border-radius: 16px;
+  padding: 25px;
+  width: 280px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  text-align: center;
+  animation: fadeInUp 0.7s ease both;
+  transition: all 0.3s ease;
+}
+
+.user-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.15);
+}
+
+.user-icon {
+  font-size: 3rem;
+  color: #2980b9;
+  margin-bottom: 10px;
+}
+
+.user-card h5 {
+  font-weight: 600;
+  margin: 5px 0 8px 0;
+  color: #2c3e50;
+}
+
+.user-card p {
+  font-size: 0.95rem;
+  color: #6c7a89;
+  margin: 0;
+}
+
+@media screen and (max-width:468px){
+  .search{
+    min-width: 200px;
+  }
+}
+
+@keyframes fadeInPage {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-25px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.user-card {
+  background: #fff;
+  border-left: 5px solid #0d6efd;
+  transition: 0.3s ease;
+}
+
+.user-card:hover {
+  transform: scale(1.02);
+} */
+
+.heading{
+    font-weight: bolder;
+    font-size: xx-large;
+}
+
+
+.user-card {
+  background-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+  border: none !important;
+}
+
+.user-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.user-card h5 {
+  font-weight: 600;
+  color: #333;
+}
+
+.user-card p {
+  font-size: 0.95rem;
+  color: #666;
+}
+
+.user-card i {
+  color: #14fce1; /* Bootstrap primary color */
+}
+
+.user-card button,
+.user-card a.btn {
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-size: 1rem;
+}
+
+/* Responsive mobile adjustments */
+@media (max-width: 768px) {
+  .user-card {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .user-card p {
+    font-size: 0.9rem;
+  }
+
+  .user-card h5 {
+    font-size: 1.1rem;
+  }
+
+  .user-card button,
+  .user-card a.btn {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
+}
+
+
+/* Modal overlay */
+.modal.fade.show.d-block {
+  backdrop-filter: blur(5px);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Modal card styling */
+.modal-content {
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  background: linear-gradient(145deg, #ffffff, #f0f0f0);
+  border: none;
+  animation: slideUp 0.4s ease-in-out;
+}
+
+/* Modal Header */
+.modal-header {
+  background: #0ec9ea;
+  color: white;
+  border-top-left-radius: 15px;
+  border-top-right-radius: 15px;
+}
+
+.modal-title {
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: 0.5px;
+}
+
+/* Form Inputs */
+.modal-body input,
+.modal-body textarea {
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  transition: 0.3s ease;
+}
+
+.modal-body input:focus,
+.modal-body textarea:focus {
+  border-color: #29d3f9;
+  box-shadow: 0 0 8px rgba(0, 123, 255, 0.3);
+}
+
+/* Buttons */
+.modal-footer .btn {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-weight: 500;
+  transition: all 0.3s ease-in-out;
+}
+
+.modal-footer .btn-primary {
+  background-color: #09b6f0;
+  border: none;
+}
+
+.modal-footer .btn-primary:hover {
+  background-color: #16d4a8;
+}
+
+.modal-footer .btn-secondary:hover {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    background-color: rgba(0, 0, 0, 0);
+  }
+  to {
+    background-color: rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+
+@media (max-width: 768px) {
+  .table-responsive {
+    font-size: 14px;
+  }
+}
+
+
+
+/* CustomerCard.css */
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  box-shadow: 0 8px 2px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 24px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+/* 
+.glass-card:hover {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+} */
+
+.glass-card h5 {
+  font-weight: 600;
+  color: #0d6efd; /* Bootstrap primary */
+}
+
+.glass-card .info-icon {
+  font-size: 1.2rem;
+  color: #6c757d; /* Bootstrap secondary */
+  margin-right: 8px;
+}
+
+.glass-card .info-row {
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.glass-header {
+  background: rgba(8, 162, 233, 0.9);
+  backdrop-filter: blur(8px);
+  color: white;
+}
+
+.table-responsive {
+  background-color: #fdfdfd;
+  border-radius: 8px;
+  overflow-x: auto;
+}
+
+.table th,
+.table td {
+  vertical-align: middle;
+}
+
+input.form-control:focus {
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}

@@ -1,0 +1,361 @@
+/* ===== General Reset ===== */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+html, body, #root {
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  font-family: 'Poppins', sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* ===== Page Container ===== */
+.login-page {
+  position: relative;
+  height: 100%;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(120deg, #1f3a93, #4a69bd, #1abc9c, #16a085);
+  background-size: 300% 300%;
+  animation: gradientShift 12s ease infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== Gradient Animation ===== */
+@keyframes gradientShift {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
+
+/* ===== Floating Background Shapes ===== */
+.bg-shape {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.15;
+  animation: floatShape 8s ease-in-out infinite;
+}
+
+.shape1 {
+  width: 200px;
+  height: 200px;
+  background: #ffffff;
+  top: 10%;
+  left: 15%;
+  animation-delay: 0s;
+}
+
+.shape2 {
+  width: 300px;
+  height: 300px;
+  background: #ff7979;
+  bottom: 15%;
+  right: 10%;
+  animation-delay: 2s;
+}
+
+.shape3 {
+  width: 150px;
+  height: 150px;
+  background: #f6e58d;
+  top: 20%;
+  right: 20%;
+  animation-delay: 4s;
+}
+
+.shape4 {
+  width: 250px;
+  height: 250px;
+  background: #badc58;
+  bottom: 25%;
+  left: 25%;
+  animation-delay: 6s;
+}
+
+@keyframes floatShape {
+  0%   { transform: translateY(0) scale(1) rotate(0deg); }
+  50%  { transform: translateY(-20px) scale(1.1) rotate(180deg); }
+  100% { transform: translateY(0) scale(1) rotate(360deg); }
+}
+
+/* ===== Login Card Styles ===== */
+.login-card {
+  position: relative;
+  width: 350px;
+  max-width: 90%;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+  transform: scale(0.8) translateY(50px);
+  opacity: 0;
+}
+
+/* Entry animation for card */
+.card-entrance {
+  animation: cardFadeIn 0.8s ease forwards;
+}
+
+@keyframes cardFadeIn {
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ===== Card Body ===== */
+.login-card .card-body {
+  padding: 2rem;
+}
+
+.glow-text {
+  animation: textGlow 1.5s ease-in-out infinite alternate;
+  color: #1a1a1a;
+}
+@keyframes textGlow {
+  from { text-shadow: 0 0 8px #1abc9c; }
+  to   { text-shadow: 0 0 18px #16a085; }
+}
+
+/* ===== Floating Labels ===== */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.animated-input {
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid #ccc;
+  background: transparent;
+  padding: 0.5rem 7px 0.5rem 7px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.animated-input:focus {
+  outline: none;
+  border-bottom-color: #1abc9c;
+  box-shadow: none;
+}
+
+.floating-label {
+  position: absolute;
+  top: 0.65rem;
+  left: 0;
+  font-size: 0.9rem;
+  color: #999;
+  pointer-events: none;
+  transition: all 0.3s ease;
+}
+
+.animated-input:focus + .floating-label,
+.animated-input:not(:placeholder-shown) + .floating-label {
+  top: -1rem;
+  font-size: 0.75rem;
+  color: #1abc9c;
+  font-weight: 500;
+}
+
+/* ===== Login Button Pulse ===== */
+.btn-pulse {
+  width: 100%;
+  padding: 0.6rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  background: #1abc9c;
+  border: none;
+  border-radius: 50px;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.3s ease;
+  animation: pulseBtn 2s infinite;
+}
+
+.btn-pulse:hover {
+  background: #16a085;
+}
+
+@keyframes pulseBtn {
+  0%   { box-shadow: 0 0 0 0 rgba(26, 188, 156, 0.7); }
+  70%  { box-shadow: 0 0 0 20px rgba(26, 188, 156, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(26, 188, 156, 0); }
+}
+
+/* ===== Link Hover Animation ===== */
+.link-animated {
+  color: #1abc9c;
+  position: relative;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.link-animated::after {
+  content: "";
+  position: absolute;
+  width: 0;
+  height: 2px;
+  background: #1abc9c;
+  left: 0;
+  bottom: -4px;
+  transition: width 0.3s ease;
+}
+
+.link-animated:hover {
+  color: #16a085;
+}
+
+.link-animated:hover::after {
+  width: 100%;
+}
+
+/* ===== Footer Text ===== */
+.footer-text {
+  position: absolute;
+  bottom: 10px;
+  width: 100%;
+  font-size: 0.875rem;
+  color: #ececec;
+}
+
+/* ===== Responsive Tweaks ===== */
+@media (max-width: 576px) {
+  .login-card {
+    width: 90%;
+    padding: 1rem;
+  }
+  .bg-shape {
+    display: none;
+  }
+}
+
+
+.animated-card {
+  animation: slideFade 0.6s ease-in-out;
+  border-radius: 12px;
+}
+
+@keyframes slideFade {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0px);
+    opacity: 1;
+  }
+}
+
+.auth-container {
+  background: linear-gradient(135deg, #e8f0fe, #ffffff);
+}
+
+
+.otp-container {
+  gap: 0.5rem;
+}
+
+.otp-input {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.5rem;
+  border: 2px solid #ced4da;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.otp-input:focus {
+  outline: none;
+  border-color: #1abc9c;
+  box-shadow: 0 0 8px rgba(26, 188, 156, 0.4);
+}
+
+@media (max-width: 400px) {
+  .otp-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .otp-input {
+    width: 100%;
+    max-width: 4rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-box {
+  background: #fff;
+  padding: 35px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 400px;
+}
+
+.modal-box input {
+  font-size: 14px;
+}
+
+
+.form-control:focus {
+  border: 1px solid black;
+  box-shadow: none;
+}
+
+.form-control{
+  border: 1px solid black;
+  box-shadow: none;
+}
+
+
+.input-group-text{
+  border: 1px solid black;
+  box-shadow: none;
+}
+
+
+
+@media (max-width: 480px) {
+  /* Styles for mobile */
+ .users-title{
+  font-size: 30px !important;
+  
+ }
+
+ .heade{
+  margin-bottom: 10px !important;
+ }
+
+ .sear{
+  max-width: 170px !important;
+ }
+
+
+ .custom{
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+ }
+}

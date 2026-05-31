@@ -1,0 +1,210 @@
+.ops-dashboard {
+  width: min(100%, 1440px);
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
+  color: var(--foreground);
+}
+
+.ops-dashboard__hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.ops-dashboard__hero-copy {
+  min-width: 0;
+}
+
+.ops-dashboard__eyebrow {
+  margin: 0 0 0.5rem;
+  color: #2463eb;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ops-dashboard__hero h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 5vw, 4.15rem);
+  font-weight: 500;
+  line-height: 1.02;
+  letter-spacing: -0.05em;
+}
+
+.ops-dashboard__hero p {
+  max-width: 62rem;
+  margin: 0.8rem 0 0;
+  color: var(--muted-foreground);
+  font-size: 1.08rem;
+  line-height: 1.55;
+}
+
+.ops-dashboard__search {
+  flex: none;
+  min-width: 0;
+  margin-top: 2rem;
+  border-radius: 14px;
+  padding-inline: 1.1rem;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+}
+
+.ops-dashboard__stats,
+.ops-dashboard__modules {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ops-dashboard__stats {
+  margin-bottom: 1rem;
+}
+
+.ops-dashboard__stat-card,
+.ops-dashboard__module-card {
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 10px 24px rgba(16, 24, 40, 0.04);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.ops-dashboard__module-card.is-featured {
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.ops-dashboard__stat-card:hover,
+.ops-dashboard__module-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(16, 24, 40, 0.08);
+}
+
+.ops-dashboard__card-body {
+  height: 100%;
+  display: grid;
+  gap: 1rem;
+}
+
+.ops-dashboard__stat-top,
+.ops-dashboard__module-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ops-dashboard__label,
+.ops-dashboard__module-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1351d8;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.ops-dashboard__module-badge {
+  border: none;
+}
+
+.ops-dashboard__icon-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 14px;
+  background: rgba(37, 99, 235, 0.09);
+  color: #2563eb;
+  font-size: 1.35rem;
+  flex: none;
+}
+
+.ops-dashboard__stat-value {
+  margin: 0;
+  font-size: clamp(2.1rem, 3vw, 3rem);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.ops-dashboard__module-body {
+  min-height: 210px;
+}
+
+.ops-dashboard__module-copy {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.ops-dashboard__module-copy h2 {
+  margin: 0;
+  font-size: 1.42rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.ops-dashboard__module-copy p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.ops-dashboard__link {
+  justify-self: end;
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  background: transparent;
+  color: #5b6780;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.ops-dashboard__link i {
+  font-size: 0.95rem;
+  transition: transform 160ms ease;
+}
+
+.ops-dashboard__module-card:hover .ops-dashboard__link i {
+  transform: translateX(3px);
+}
+
+@media (max-width: 1100px) {
+  .ops-dashboard__stats,
+  .ops-dashboard__modules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .ops-dashboard__search {
+    margin-top: 0.35rem;
+  }
+}
+
+@media (max-width: 760px) {
+  .ops-dashboard__hero {
+    flex-direction: column;
+  }
+
+  .ops-dashboard__search {
+    width: 100%;
+    justify-content: center;
+    margin-top: 0;
+  }
+
+  .ops-dashboard__stats,
+  .ops-dashboard__modules {
+    grid-template-columns: 1fr;
+  }
+}

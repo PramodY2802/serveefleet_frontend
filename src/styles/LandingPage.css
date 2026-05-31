@@ -1,0 +1,117 @@
+/* === General === */
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #f8f9fa;
+}
+
+.hero-section {
+  background: linear-gradient(135deg, #1d3557, #457b9d);
+  min-height: 90vh;
+  position: relative;
+  overflow: hidden;
+  padding-top: 5rem;
+  padding-bottom: 5rem;
+}
+
+.floating-icons span {
+  position: absolute;
+  font-size: 2rem;
+  animation: float 6s infinite ease-in-out;
+  opacity: 0.3;
+}
+
+.car-icon { top: 20%; left: 10%; animation-delay: 0s; }
+.gear-icon { top: 40%; right: 15%; animation-delay: 2s; }
+.wrench-icon { bottom: 15%; left: 50%; animation-delay: 4s; }
+
+@keyframes float {
+  0% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-15px) rotate(10deg); }
+  100% { transform: translateY(0px) rotate(0deg); }
+}
+
+/* === Animations === */
+.tracking-in-expand {
+  animation: tracking-in-expand 1s ease-out both;
+}
+@keyframes tracking-in-expand {
+  0% { letter-spacing: -0.5em; opacity: 0; }
+  100% { letter-spacing: normal; opacity: 1; }
+}
+
+.fade-in-text {
+  animation: fadeIn 1.5s ease-in forwards;
+  opacity: 0;
+}
+
+.fade-in-up {
+  animation: fadeInUp 1s ease-out forwards;
+  opacity: 0;
+}
+
+.fade-in-down {
+  animation: fadeInDown 1s ease-out forwards;
+  opacity: 0;
+}
+
+.bounce-in {
+  animation: bounceIn 1s both;
+}
+
+@keyframes fadeIn {
+  100% { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes fadeInDown {
+  from { transform: translateY(-30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes bounceIn {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* === Buttons & Cards === */
+.pulse-btn {
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255,255,255,0.5); }
+  70% { box-shadow: 0 0 0 15px rgba(255,255,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+
+.btn-glow {
+  transition: all 0.3s ease;
+}
+.btn-glow:hover {
+  background-color: white;
+  color: #007bff;
+  box-shadow: 0 0 15px #ffffff80;
+}
+
+.hover-zoom {
+  transition: transform 0.3s ease;
+}
+.hover-zoom:hover {
+  transform: scale(1.05);
+}
+
+.bg-gradient-primary {
+  background: linear-gradient(to right, #007bff, #0056b3);
+}
+
+.glow-logo {
+  animation: glow 1.5s ease-in-out infinite alternate;
+}
+@keyframes glow {
+  from { text-shadow: 0 0 10px #00c3ff; }
+  to { text-shadow: 0 0 20px #00c3ff, 0 0 30px #00c3ff; }
+}
