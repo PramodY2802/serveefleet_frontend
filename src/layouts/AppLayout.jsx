@@ -1,16 +1,18 @@
 import React from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth.js';
+import { useReminderAlerts } from '../context/ReminderAlertsContext.jsx';
 import { useTheme } from '../shared/theme/ThemeProvider.jsx';
 import Button from '../shared/components/ui/Button.jsx';
 
 const AppLayout = () => {
   const { user, logout } = useAuth();
+  const { counts } = useReminderAlerts();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const navItems = [
     { label: 'Dashboard', to: '/dashboard', icon: 'bi-speedometer2' },
-    { label: 'Reminders', to: '/reminders', icon: 'bi-bell' },
+    { label: 'Reminders', to: '/reminders', icon: 'bi-bell', badge: counts.alertCount },
     { label: 'Customers', to: '/customers', icon: 'bi-people' },
     { label: 'Search', to: '/search', icon: 'bi-search' },
   ];
@@ -42,6 +44,7 @@ const AppLayout = () => {
               <NavLink key={item.to} to={item.to} className={({ isActive }) => `app-nav__link ${isActive ? 'is-active' : ''}`}>
                 <i className={`bi ${item.icon}`} aria-hidden="true" />
                 <span>{item.label}</span>
+                {item.badge > 0 && <span className="app-nav__badge">{item.badge}</span>}
               </NavLink>
             ))}
           </div>
@@ -74,6 +77,7 @@ const AppLayout = () => {
             <NavLink key={item.to} to={item.to} className={({ isActive }) => `app-nav__link ${isActive ? 'is-active' : ''}`}>
               <i className={`bi ${item.icon}`} aria-hidden="true" />
               <span>{item.label}</span>
+              {item.badge > 0 && <span className="app-nav__badge">{item.badge}</span>}
             </NavLink>
           ))}
         </nav>

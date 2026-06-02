@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Card, CardBody, EmptyState, LoadingState, Page } from '../../shared/components/ui/index.js';
+import { useReminderAlerts } from '../../context/ReminderAlertsContext.jsx';
 import { useToast } from '../../shared/components/ToastProvider.jsx';
 import reminderService from '../../services/reminderService.js';
 import '../../styles/operations-dashboard.css';
@@ -130,6 +131,12 @@ const ReminderSummaryCard = ({ title, count, icon, tone, actionLabel, onAction }
 const DashboardPage = () => {
   const navigate = useNavigate();
   const toast = useToast();
+  const {
+    counts: reminderCenterCounts,
+    browserNotificationsSupported,
+    notificationPermission,
+    requestNotificationPermission,
+  } = useReminderAlerts();
   const [loading, setLoading] = useState(true);
   const [reminders, setReminders] = useState([]);
   const [error, setError] = useState('');
@@ -206,6 +213,20 @@ const DashboardPage = () => {
       .slice(0, 5);
   }, [reminders]);
 
+  const reminderBannerVisible = reminderCenterCounts.alertCount > 0 || (browserNotificationsSupported && notificationPermission !== 'granted');
+  const reminderBannerTone = reminderCenterCounts.overdue > 0 ? 'destructive' : reminderCenterCounts.dueToday > 0 ? 'warning' : 'primary';
+  const canPromptNotificationPermission = browserNotificationsSupported && notificationPermission === 'default';
+  const reminderBannerTitle =
+    reminderCenterCounts.alertCount > 0
+      ? `${reminderCenterCounts.alertCount} reminder${reminderCenterCounts.alertCount === 1 ? '' : 's'} need attention`
+      : 'Browser notifications are available for future reminder alerts';
+  const reminderBannerDescription =
+    reminderCenterCounts.alertCount > 0
+      ? `${reminderCenterCounts.overdue} overdue and ${reminderCenterCounts.dueToday} due today. Keep reminders visible with a browser notification badge.`
+      : notificationPermission === 'denied'
+        ? 'Browser notifications are blocked in your browser settings, but in-app reminder alerts will still appear here.'
+        : 'Turn on browser notifications to get reminder alerts while you work in ServiFleet.';
+
   useEffect(() => {
     if (loading) return;
     const alertKey = `${summary.dueToday}:${summary.overdue}`;
@@ -241,6 +262,45 @@ const DashboardPage = () => {
           </Button>
         </div>
       </header>
+
+      {reminderBannerVisible && (
+        <section className={`reminder-alert-banner reminder-alert-banner--${reminderBannerTone}`} aria-label="Reminder alerts">
+          <div className="reminder-alert-banner__content">
+            <p className="reminder-alert-banner__eyebrow">Reminder alerts</p>
+            <h2 className="reminder-alert-banner__title">{reminderBannerTitle}</h2>
+            <p className="reminder-alert-banner__description">{reminderBannerDescription}</p>
+            <div className="reminder-alert-banner__badges">
+              {reminderCenterCounts.alertCount > 0 ? (
+                <>
+                  <span className={`reminder-alert-banner__badge reminder-alert-banner__badge--${reminderBannerTone}`}>
+                    <i className="bi bi-calendar-event" aria-hidden="true" />
+                    Due today: {reminderCenterCounts.dueToday}
+                  </span>
+                  <span className={`reminder-alert-banner__badge reminder-alert-banner__badge--${reminderBannerTone}`}>
+                    <i className="bi bi-exclamation-triangle" aria-hidden="true" />
+                    Overdue: {reminderCenterCounts.overdue}
+                  </span>
+                </>
+              ) : (
+                <span className="reminder-alert-banner__badge">
+                  <i className="bi bi-bell" aria-hidden="true" />
+                  {notificationPermission === 'denied' ? 'Notifications blocked in browser settings' : 'Ready for future reminder alerts'}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="reminder-alert-banner__actions">
+            <Button variant="outline" icon="bi-bell" onClick={() => navigate('/reminders')}>
+              Open reminders
+            </Button>
+            {canPromptNotificationPermission && (
+              <Button variant="primary" icon="bi-bell-fill" onClick={requestNotificationPermission}>
+                Enable browser notifications
+              </Button>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="ops-dashboard__stats" aria-label="Dashboard metrics">
         {stats.map((stat) => (
