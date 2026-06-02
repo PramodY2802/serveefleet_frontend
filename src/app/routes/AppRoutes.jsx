@@ -10,6 +10,7 @@ const ForgotPasswordPage = lazy(() => import('../../modules/auth/ForgotPasswordP
 const ResetPasswordPage = lazy(() => import('../../modules/auth/ResetPasswordPage.jsx'));
 const GoogleAuthSuccessPage = lazy(() => import('../../modules/auth/GoogleAuthSuccessPage.jsx'));
 const DashboardPage = lazy(() => import('../../modules/dashboard/DashboardPage.jsx'));
+const RemindersPage = lazy(() => import('../../modules/reminders/RemindersPage.jsx'));
 const CustomerPage = lazy(() => import('../../modules/customer/CustomerPage.jsx'));
 const VehiclePage = lazy(() => import('../../modules/vehicle/VehiclePage.jsx'));
 const ServicePage = lazy(() => import('../../modules/service/ServicePage.jsx'));
@@ -29,6 +30,7 @@ const AppRoutes = () => (
     <Route element={<ProtectedRoute />}>
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/customers" element={<CustomerPage />} />
         <Route path="/alluser" element={<Navigate replace to="/customers" />} />
         <Route path="/customers/:customerId/vehicles" element={<VehiclePage />} />

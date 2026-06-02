@@ -40,9 +40,10 @@ const authService = {
     return response.data;
   },
 
-  resetPassword: async ({ email, newPassword, confirmPassword }) => {
+  resetPassword: async ({ email, resetToken, newPassword, confirmPassword }) => {
     const response = await publicClient.post('/api/auth/reset-password', {
       email,
+      resetToken,
       newPassword,
       confirmPassword,
     });

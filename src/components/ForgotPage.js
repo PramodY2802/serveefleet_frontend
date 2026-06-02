@@ -128,7 +128,11 @@ const ForgotPassword = () => {
       });
 
       // Call backend endpoint
-     await axios.post(`${backendUrl}/api/auth/verify-otp`, { email, otp: otpCode });
+     const response = await axios.post(`${backendUrl}/api/auth/verify-otp`, { email, otp: otpCode });
+      const resetToken = response.data?.data?.resetToken;
+      if (!resetToken) {
+        throw new Error('Reset token was not issued by the server.');
+      }
 
 
       Swal.close();
@@ -143,7 +147,7 @@ const ForgotPassword = () => {
       });
 
       // Navigate to the Reset Password page, passing email in state or query if desired
-      navigate('/reset-password', { state: { email } });
+      navigate('/reset-password', { state: { email, resetToken } });
     } catch (error) {
       Swal.close();
 

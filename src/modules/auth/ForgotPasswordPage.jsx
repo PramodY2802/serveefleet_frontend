@@ -58,9 +58,13 @@ const ForgotPasswordPage = () => {
 
     try {
       setLoading(true);
-      await authService.verifyOtp({ email, otp: code });
+      const response = await authService.verifyOtp({ email, otp: code });
+      const resetToken = response.data?.data?.resetToken;
+      if (!resetToken) {
+        throw new Error('Reset token was not issued by the server.');
+      }
       toast.addToast('OTP verified. Please reset your password.', 'success');
-      navigate('/reset-password', { state: { email } });
+      navigate('/reset-password', { state: { email, resetToken } });
     } catch (error) {
       toast.addToast(error.response?.data?.message || 'OTP verification failed.', 'error');
       setOtp(['', '', '', '']);

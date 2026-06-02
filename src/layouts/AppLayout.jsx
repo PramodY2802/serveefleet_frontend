@@ -10,6 +10,7 @@ const AppLayout = () => {
   const navigate = useNavigate();
   const navItems = [
     { label: 'Dashboard', to: '/dashboard', icon: 'bi-speedometer2' },
+    { label: 'Reminders', to: '/reminders', icon: 'bi-bell' },
     { label: 'Customers', to: '/customers', icon: 'bi-people' },
     { label: 'Search', to: '/search', icon: 'bi-search' },
   ];

@@ -17,16 +17,17 @@ const ResetPassword = () => {
   // Grab the email from location.state (passed from OTP step)
   const location = useLocation();
   const email = location.state?.email || '';
+  const resetToken = location.state?.resetToken || '';
 
   useEffect(() => {
     // If no email was provided, redirect back to login
-    if (!email) {
+    if (!email || !resetToken) {
       navigate('/login');
       return;
     }
     const timer = setTimeout(() => setAnimate(true), 100);
     return () => clearTimeout(timer);
-  }, [email, navigate]);
+  }, [email, navigate, resetToken]);
 
   const handleResetSubmit = async (e) => {
     e.preventDefault();
@@ -63,6 +64,7 @@ const ResetPassword = () => {
       // 3) Call backend API to reset password
      await axios.post(`${backendUrl}/api/auth/reset-password`, {
   email,
+  resetToken,
   newPassword,
   confirmPassword
 });

@@ -13,12 +13,13 @@ const ResetPasswordPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const email = location.state?.email;
+  const resetToken = location.state?.resetToken;
 
   useEffect(() => {
-    if (!email) {
+    if (!email || !resetToken) {
       navigate('/forgot-password');
     }
-  }, [email, navigate]);
+  }, [email, navigate, resetToken]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -33,7 +34,7 @@ const ResetPasswordPage = () => {
 
     try {
       setLoading(true);
-      await authService.resetPassword({ email, newPassword, confirmPassword });
+      await authService.resetPassword({ email, resetToken, newPassword, confirmPassword });
       toast.addToast('Password reset successful.', 'success');
       navigate('/login');
     } catch (error) {

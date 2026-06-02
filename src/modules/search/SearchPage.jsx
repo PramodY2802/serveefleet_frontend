@@ -62,6 +62,7 @@ const SearchPage = () => {
     '';
 
   const getCustomerId = (service) =>
+    service.customerId ||
     service.vehicle?.customer?._id ||
     service.vehicle?.customer?.id ||
     service.vehicle?.customer?.customerId ||
@@ -69,7 +70,7 @@ const SearchPage = () => {
     service.vehicleId?.userId?.id ||
     service.customer?._id ||
     service.customer?.id ||
-    service.customerId ||
+    service.customer?.customerId ||
     '';
 
   const openVehicleServices = (service) => {
@@ -120,11 +121,16 @@ const SearchPage = () => {
 
   const getCustomerLabel = (service) => {
     const customerName =
-      service.vehicle?.customer?.name ||
-      service.vehicleId?.userId?.name ||
-      service.customer?.name ||
       service.customerName ||
       service.vehicle?.customerName ||
+      service.vehicle?.customer?.name ||
+      service.vehicle?.customer?.fullName ||
+      service.vehicle?.customer?.companyName ||
+      service.vehicleId?.userId?.name ||
+      service.vehicleId?.userId?.fullName ||
+      service.customer?.name ||
+      service.customer?.fullName ||
+      service.customer?.companyName ||
       'Unknown';
     const customerId = getCustomerId(service);
 
@@ -142,9 +148,7 @@ const SearchPage = () => {
       );
     }
 
-    return (
-      customerName
-    );
+    return customerName;
   };
 
   const getServiceLabel = (service) => {
@@ -180,7 +184,7 @@ const SearchPage = () => {
       ),
     },
     { key: 'vehicle', label: 'Vehicle', render: (service) => getVehicleLabel(service) },
-    { key: 'customer', label: 'Customer', render: (service) => getCustomerLabel(service) },
+    { key: 'customer', label: 'Customer Name', render: (service) => getCustomerLabel(service) },
     { key: 'lastUpdated', label: 'Last Updated', render: (service) => formatDateTimeIST(getLatestTimestamp(service)) },
     { key: 'status', label: 'Status', render: (service) => <Badge tone={service.isActive === false ? 'destructive' : 'primary'}>{service.isActive === false ? 'Inactive' : 'Recorded'}</Badge> },
   ];

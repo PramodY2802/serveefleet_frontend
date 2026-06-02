@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import serviceService from '../../services/serviceService.js';
+import reminderService from '../../services/reminderService.js';
 import billingService from '../../services/billingService.js';
 import DataTable from '../../shared/components/DataTable.jsx';
 import FormField from '../../shared/components/FormField.jsx';
@@ -17,6 +18,38 @@ const formatDateInput = (value) => {
   return date.toISOString().slice(0, 10);
 };
 
+const formatTimeInput = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+};
+
+const combineDateAndTime = (dateValue, timeValue, timezone = DEFAULT_TIMEZONE) => {
+  if (!dateValue) return null;
+  const normalizedTime = timeValue || '00:00';
+  const date = new Date(`${dateValue}T${normalizedTime}:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return {
+    remindAt: date.toISOString(),
+    timezone: timezone || DEFAULT_TIMEZONE,
+  };
+};
+
+const splitDateTime = (value) => ({
+  date: formatDateInput(value),
+  time: formatTimeInput(value),
+});
+
+const createServiceItemKey = (serviceId, item, index = 0) => {
+  const normalized = `${serviceId || 'draft'}-${index}-${String(item?.name || item?.description || '').trim().toLowerCase()}-${String(item?.itemType || item?.type || 'part').trim().toLowerCase()}`;
+  const slug = normalized.replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '') || 'item';
+  const suffix = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().slice(0, 8)
+    : `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  return `srvitem_${slug}_${suffix}`;
+};
+
 const DEFAULT_SERVICE_INTERVAL_KM = 5000;
 const DEFAULT_SERVICE_INTERVAL_DAYS = 180;
 const BILL_ITEM_TYPES = [
@@ -26,12 +59,39 @@ const BILL_ITEM_TYPES = [
   { value: 'accessory', label: 'Accessory' },
 ];
 
+const DEFAULT_TIMEZONE =
+  (typeof Intl !== 'undefined' && Intl.DateTimeFormat().resolvedOptions().timeZone) || 'UTC';
+
 const createBillItem = (overrides = {}) => ({
   id: (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `item-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+  serviceItemKey:
+    overrides.serviceItemKey ||
+    `srvitem_${typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`,
   name: '',
   itemType: 'service',
   quantity: 1,
   unitPrice: '',
+  partReminderEnabled: false,
+  partReminderId: '',
+  partReminderDate: '',
+  partReminderTime: '',
+  partReminderDueOdometer: '',
+  partReminderNotes: '',
+  partReminderTimezone: DEFAULT_TIMEZONE,
+  ...overrides,
+});
+
+const createReminderOnlyPart = (overrides = {}) => createBillItem({
+  itemType: overrides.itemType || 'part',
+  quantity: overrides.quantity ?? 1,
+  unitPrice: overrides.unitPrice ?? '',
+  partReminderEnabled: overrides.partReminderEnabled ?? true,
+  partReminderId: overrides.partReminderId || '',
+  partReminderDate: overrides.partReminderDate || '',
+  partReminderTime: overrides.partReminderTime || '',
+  partReminderDueOdometer: overrides.partReminderDueOdometer || '',
+  partReminderNotes: overrides.partReminderNotes || '',
+  partReminderTimezone: overrides.partReminderTimezone || DEFAULT_TIMEZONE,
   ...overrides,
 });
 
@@ -132,9 +192,10 @@ const buildBillItemsFromService = (service) => {
         ? service.serviceSnapshot.billItems
         : [];
   if (existingItems.length > 0) {
-    return existingItems.map((item) =>
+    return existingItems.map((item, index) =>
       createBillItem({
         id: item.id || item._id || item.id,
+        serviceItemKey: item.serviceItemKey || createServiceItemKey(service._id || service.id, item, index),
         name: item.name || item.description || '',
         itemType: item.itemType || item.type || item.category || 'service',
         quantity: item.quantity ?? 1,
@@ -192,6 +253,14 @@ const createEmptyServiceForm = () => {
     nextServiceDue: '',
     nextServiceOdometer: '',
     billItems: [createBillItem()],
+    reminderOnlyParts: [],
+    fullServiceReminderEnabled: false,
+    fullServiceReminderId: '',
+    fullServiceReminderDate: '',
+    fullServiceReminderTime: '',
+    fullServiceReminderDueOdometer: '',
+    fullServiceReminderNotes: '',
+    fullServiceReminderTimezone: DEFAULT_TIMEZONE,
     discountAmount: '0',
     gstRate: '18',
     pricingSummary: {},
@@ -356,12 +425,20 @@ const ServicePage = () => {
     nextServiceDue: false,
     nextServiceOdometer: false,
   });
+  const [serviceReminders, setServiceReminders] = useState([]);
+  const [remindersLoading, setRemindersLoading] = useState(false);
   const [recentCreatedService, setRecentCreatedService] = useState(null);
   const [billGeneratingServiceId, setBillGeneratingServiceId] = useState(null);
   const toast = useToast();
   const navigate = useNavigate();
   const searchBoxRef = useRef(null);
   const serviceTypeBoxRef = useRef(null);
+  const reminderLoadTokenRef = useRef(0);
+  const reminderSnapshotRef = useRef({
+    fullService: null,
+    partsById: new Map(),
+    partsByKey: new Map(),
+  });
 
   const historyStorageKey = useMemo(
     () => `service-search-history:${vehicleId || 'all'}`,
@@ -506,9 +583,212 @@ const ServicePage = () => {
     [serviceTypeHistory, vehicleId]
   );
 
+  const normalizeReminderComparable = useCallback((reminder = {}) => ({
+    remindAt: reminder.remindAt ? new Date(reminder.remindAt).toISOString() : '',
+    timezone: reminder.timezone || '',
+    dueOdometer: reminder.dueOdometer === null || reminder.dueOdometer === undefined || reminder.dueOdometer === ''
+      ? ''
+      : String(reminder.dueOdometer),
+    title: reminder.title || '',
+    notes: reminder.notes || '',
+    channel: JSON.stringify(reminder.channel || { inApp: true, email: false, push: false }),
+  }), []);
+
+  const isReminderComparableEqual = useCallback((left, right) => {
+    const leftComparable = normalizeReminderComparable(left);
+    const rightComparable = normalizeReminderComparable(right);
+    return Object.keys(leftComparable).every((key) => leftComparable[key] === rightComparable[key]);
+  }, [normalizeReminderComparable]);
+
+  const buildManualOverrideUpdate = useCallback((existingReminder, reminderPayload, snapshot) => {
+    if (!existingReminder) return reminderPayload;
+    if (!existingReminder.manualOverride) return reminderPayload;
+    if (!snapshot) return reminderPayload;
+
+    if (isReminderComparableEqual(reminderPayload, snapshot)) {
+      return null;
+    }
+
+    const current = normalizeReminderComparable(reminderPayload);
+    const baseline = normalizeReminderComparable(snapshot);
+    const updates = {};
+
+    Object.keys(current).forEach((key) => {
+      if (current[key] !== baseline[key]) {
+        if (key === 'channel') {
+          updates.channel = reminderPayload.channel;
+          return;
+        }
+
+        if (key === 'remindAt') {
+          updates.remindAt = reminderPayload.remindAt;
+          return;
+        }
+
+        if (key === 'timezone') {
+          updates.timezone = reminderPayload.timezone;
+          return;
+        }
+
+        if (key === 'dueOdometer') {
+          updates.dueOdometer = reminderPayload.dueOdometer;
+          return;
+        }
+
+        if (key === 'title') {
+          updates.title = reminderPayload.title;
+          return;
+        }
+
+        if (key === 'notes') {
+          updates.notes = reminderPayload.notes;
+        }
+      }
+    });
+
+    return Object.keys(updates).length ? updates : null;
+  }, [isReminderComparableEqual, normalizeReminderComparable]);
+
+  const loadServiceReminders = useCallback(
+    async (serviceId) => {
+      if (!serviceId) {
+        setServiceReminders([]);
+        return [];
+      }
+
+      const loadToken = reminderLoadTokenRef.current + 1;
+      reminderLoadTokenRef.current = loadToken;
+
+      try {
+        setRemindersLoading(true);
+        const response = await reminderService.listReminders({ serviceId, limit: 100, sort: 'remindAt' });
+        const reminders = Array.isArray(response?.data) ? response.data : [];
+        if (reminderLoadTokenRef.current !== loadToken) return reminders;
+        setServiceReminders(reminders);
+
+        const activeReminders = reminders.filter((reminder) => reminder.status !== 'CANCELLED');
+        const fullServiceReminder = activeReminders.find(
+          (reminder) => reminder.reminderType === 'FULL_SERVICE'
+        );
+        const partReminders = activeReminders.filter((reminder) => reminder.reminderType === 'PART');
+        const partsById = new Map();
+        const partsByKey = new Map();
+
+        if (fullServiceReminder) {
+          reminderSnapshotRef.current.fullService = {
+            ...fullServiceReminder,
+            id: fullServiceReminder.id || fullServiceReminder._id || '',
+          };
+        } else {
+          reminderSnapshotRef.current.fullService = null;
+        }
+
+        partReminders.forEach((reminder) => {
+          const reminderId = reminder.id || reminder._id || '';
+          const serviceItemKey = String(reminder.serviceItemKey || '').trim();
+          if (reminderId) {
+            partsById.set(reminderId, { ...reminder, id: reminderId });
+          }
+          if (serviceItemKey) {
+            partsByKey.set(serviceItemKey, { ...reminder, id: reminderId });
+          }
+        });
+        reminderSnapshotRef.current.partsById = partsById;
+        reminderSnapshotRef.current.partsByKey = partsByKey;
+
+        setForm((current) => {
+          const next = { ...current };
+
+          if (fullServiceReminder) {
+            const reminderDateTime = splitDateTime(fullServiceReminder.remindAt);
+            next.fullServiceReminderEnabled = true;
+            next.fullServiceReminderId = fullServiceReminder.id || fullServiceReminder._id || '';
+            next.fullServiceReminderDate = reminderDateTime.date;
+            next.fullServiceReminderTime = reminderDateTime.time;
+            next.fullServiceReminderDueOdometer = fullServiceReminder.dueOdometer ?? '';
+            next.fullServiceReminderNotes = fullServiceReminder.notes || '';
+            next.fullServiceReminderTimezone = fullServiceReminder.timezone || DEFAULT_TIMEZONE;
+          }
+
+          const partReminders = activeReminders.filter((reminder) => reminder.reminderType === 'PART');
+          const matchedReminderIds = new Set();
+
+          next.billItems = (next.billItems || []).map((item, index) => {
+            const itemName = String(item.name || '').trim().toLowerCase();
+            const itemType = String(item.itemType || '').trim().toLowerCase();
+            const matchedReminder = partReminders.find((reminder) => {
+              if (matchedReminderIds.has(reminder.id || reminder._id)) return false;
+              const reminderKey = String(reminder.serviceItemKey || '').trim();
+              const reminderName = String(reminder.sourceItemName || '').trim().toLowerCase();
+              const reminderType = String(reminder.sourceItemType || '').trim().toLowerCase();
+              return (
+                (reminderKey && reminderKey === item.serviceItemKey) ||
+                (reminderName && reminderName === itemName && (!reminderType || reminderType === itemType))
+              );
+            });
+
+            if (!matchedReminder) return item;
+            matchedReminderIds.add(matchedReminder.id || matchedReminder._id);
+            const reminderDateTime = splitDateTime(matchedReminder.remindAt);
+            return {
+              ...item,
+              serviceItemKey: matchedReminder.serviceItemKey || item.serviceItemKey || createServiceItemKey(serviceId, item, index),
+              partReminderEnabled: true,
+              partReminderId: matchedReminder.id || matchedReminder._id || '',
+              partReminderDate: reminderDateTime.date,
+              partReminderTime: reminderDateTime.time,
+              partReminderDueOdometer: matchedReminder.dueOdometer ?? '',
+              partReminderNotes: matchedReminder.notes || '',
+              partReminderTimezone: matchedReminder.timezone || DEFAULT_TIMEZONE,
+            };
+          });
+
+          next.reminderOnlyParts = partReminders
+            .filter((reminder) => !matchedReminderIds.has(reminder.id || reminder._id))
+            .map((reminder, index) => {
+              const reminderDateTime = splitDateTime(reminder.remindAt);
+              return createReminderOnlyPart({
+                id: reminder.id || reminder._id || `reminder-only-${index}`,
+                serviceItemKey: reminder.serviceItemKey || createServiceItemKey(serviceId, reminder, index),
+                name: reminder.sourceItemName || '',
+                itemType: reminder.sourceItemType || 'part',
+                partReminderEnabled: true,
+                partReminderId: reminder.id || reminder._id || '',
+                partReminderDate: reminderDateTime.date,
+                partReminderTime: reminderDateTime.time,
+                partReminderDueOdometer: reminder.dueOdometer ?? '',
+                partReminderNotes: reminder.notes || '',
+                partReminderTimezone: reminder.timezone || DEFAULT_TIMEZONE,
+              });
+            });
+
+          return next;
+        });
+
+        return reminders;
+      } catch (error) {
+        if (reminderLoadTokenRef.current !== loadToken) return [];
+        toast.addToast(error.response?.data?.message || 'Unable to load reminders for this service.', 'error');
+        setServiceReminders([]);
+        return [];
+      } finally {
+        if (reminderLoadTokenRef.current === loadToken) {
+          setRemindersLoading(false);
+        }
+      }
+    },
+    [toast]
+  );
+
   const openCreateModal = () => {
     setSelectedService(null);
     setForm(createEmptyServiceForm());
+    setServiceReminders([]);
+    reminderSnapshotRef.current = {
+      fullService: null,
+      partsById: new Map(),
+      partsByKey: new Map(),
+    };
     setScheduleOverrides({
       nextServiceDue: false,
       nextServiceOdometer: false,
@@ -537,11 +817,20 @@ const ServicePage = () => {
       nextServiceDue: formatDateInput(service.nextServiceDue),
       nextServiceOdometer: service.nextServiceOdometer ?? '',
       billItems: serviceBillItems,
+      reminderOnlyParts: [],
+      fullServiceReminderEnabled: false,
+      fullServiceReminderId: '',
+      fullServiceReminderDate: '',
+      fullServiceReminderTime: '',
+      fullServiceReminderDueOdometer: '',
+      fullServiceReminderNotes: '',
+      fullServiceReminderTimezone: DEFAULT_TIMEZONE,
       discountAmount,
       gstRate,
       pricingSummary: service.pricingSummary || serviceBillingSnapshot.pricingSummary,
       taxBreakdown: service.taxBreakdown || serviceBillingSnapshot.taxBreakdown,
     });
+    void loadServiceReminders(service._id || service.id);
     setScheduleOverrides({
       nextServiceDue: false,
       nextServiceOdometer: false,
@@ -552,8 +841,16 @@ const ServicePage = () => {
 
   const closeModal = (force = false) => {
     if (saving && !force) return;
+    reminderLoadTokenRef.current += 1;
     setModalMode(null);
     setSelectedService(null);
+    setServiceReminders([]);
+    reminderSnapshotRef.current = {
+      fullService: null,
+      partsById: new Map(),
+      partsByKey: new Map(),
+    };
+    setRemindersLoading(false);
     setScheduleOverrides({
       nextServiceDue: false,
       nextServiceOdometer: false,
@@ -618,6 +915,119 @@ const ServicePage = () => {
         taxBreakdown: billingState.taxBreakdown,
       };
     });
+    setErrors((current) => ({ ...current, [`billItems.${index}.${field}`]: '' }));
+  };
+
+  const addReminderOnlyPart = () => {
+    setForm((current) => ({
+      ...current,
+      reminderOnlyParts: [...(current.reminderOnlyParts || []), createReminderOnlyPart()],
+    }));
+  };
+
+  const updateReminderOnlyPartField = (index, field, value) => {
+    setForm((current) => {
+      const nextReminderOnlyParts = (current.reminderOnlyParts || []).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      );
+      return {
+        ...current,
+        reminderOnlyParts: nextReminderOnlyParts,
+      };
+    });
+    setErrors((current) => ({ ...current, [`reminderOnlyParts.${index}.${field}`]: '' }));
+  };
+
+  const removeReminderOnlyPart = (index) => {
+    setForm((current) => {
+      const nextReminderOnlyParts = (current.reminderOnlyParts || []).filter((_, itemIndex) => itemIndex !== index);
+      return {
+        ...current,
+        reminderOnlyParts: nextReminderOnlyParts,
+      };
+    });
+  };
+
+  const buildReminderPayload = (base, overrides = {}) => {
+    const dateTime = combineDateAndTime(base.date, base.time, base.timezone || DEFAULT_TIMEZONE);
+    if (!dateTime) return null;
+
+    return {
+      remindAt: dateTime.remindAt,
+      timezone: dateTime.timezone,
+      dueOdometer: base.dueOdometer !== '' && base.dueOdometer !== null && base.dueOdometer !== undefined
+        ? Number(base.dueOdometer)
+        : undefined,
+      title: base.title?.trim() || undefined,
+      notes: base.notes?.trim() || undefined,
+      channel: base.channel || { inApp: true, email: false, push: false },
+      ...overrides,
+    };
+  };
+
+  const buildFullServiceReminderPayload = (serviceRecord) => {
+    if (!form.fullServiceReminderEnabled) return null;
+    if (!serviceRecord?.id && !serviceRecord?._id) return null;
+
+    return buildReminderPayload({
+      date: form.fullServiceReminderDate,
+      time: form.fullServiceReminderTime,
+      timezone: form.fullServiceReminderTimezone || DEFAULT_TIMEZONE,
+      dueOdometer: form.fullServiceReminderDueOdometer,
+      notes: form.fullServiceReminderNotes,
+      title: form.fullServiceReminderNotes?.trim() ? 'Full service reminder' : 'Full service reminder',
+    }, {
+      reminderType: 'FULL_SERVICE',
+      serviceId: serviceRecord.id || serviceRecord._id,
+      vehicleId: serviceRecord.vehicle?.id || serviceRecord.vehicle?._id || serviceRecord.vehicleId || vehicleId,
+      customerId: serviceRecord.customer?.id || serviceRecord.vehicle?.customer?.id || serviceRecord.customerId,
+    });
+  };
+
+  const buildReminderSyncPayload = (existingReminder, reminderPayload) => {
+    if (!existingReminder) return reminderPayload;
+
+    const snapshot = existingReminder.reminderType === 'FULL_SERVICE'
+      ? reminderSnapshotRef.current.fullService
+      : existingReminder.id
+        ? reminderSnapshotRef.current.partsById.get(existingReminder.id)
+        : null;
+
+    return buildManualOverrideUpdate(existingReminder, reminderPayload, snapshot);
+  };
+
+  const buildPartReminderPayload = (item, serviceRecord) => {
+    if (!item?.partReminderEnabled) return null;
+    const name = String(item.name || '').trim();
+    if (!name) return { error: 'Part reminder item name is required.' };
+
+    const payload = buildReminderPayload({
+      date: item.partReminderDate,
+      time: item.partReminderTime,
+      timezone: item.partReminderTimezone || DEFAULT_TIMEZONE,
+      dueOdometer: item.partReminderDueOdometer,
+      notes: item.partReminderNotes,
+      title: `${name} reminder`,
+    }, {
+      reminderType: 'PART',
+      serviceId: serviceRecord.id || serviceRecord._id,
+      vehicleId: serviceRecord.vehicle?.id || serviceRecord.vehicle?._id || serviceRecord.vehicleId || vehicleId,
+      customerId: serviceRecord.customer?.id || serviceRecord.vehicle?.customer?.id || serviceRecord.customerId,
+      serviceItemKey: item.serviceItemKey,
+      sourceItemName: name,
+      sourceItemType: item.itemType || 'part',
+      sourceItemSnapshot: {
+        name,
+        itemType: item.itemType || 'part',
+        quantity: Number(item.quantity) || 1,
+        unitPrice: Number(item.unitPrice) || 0,
+        lineTotal: Number(item.quantity || 1) * Number(item.unitPrice || 0),
+        isBillable: Boolean(item.isBillable ?? true),
+      },
+    });
+
+    if (!payload) return { error: `Reminder date and time are required for ${name}.` };
+    return payload;
   };
 
   const addBillItem = () => {
@@ -655,6 +1065,14 @@ const ServicePage = () => {
     if (form.discountAmount !== '' && Number(form.discountAmount) < 0) nextErrors.discountAmount = 'Discount cannot be negative.';
     if (form.gstRate !== '' && Number(form.gstRate) < 0) nextErrors.gstRate = 'GST cannot be negative.';
 
+    if (form.fullServiceReminderEnabled) {
+      if (!form.fullServiceReminderDate) nextErrors.fullServiceReminderDate = 'Reminder date is required.';
+      if (!form.fullServiceReminderTime) nextErrors.fullServiceReminderTime = 'Reminder time is required.';
+      if (form.fullServiceReminderDueOdometer !== '' && Number(form.fullServiceReminderDueOdometer) < 0) {
+        nextErrors.fullServiceReminderDueOdometer = 'Reminder odometer cannot be negative.';
+      }
+    }
+
     form.billItems.forEach((item, index) => {
       if (!String(item.name || '').trim()) {
         nextErrors[`billItems.${index}.name`] = 'Item name is required.';
@@ -665,6 +1083,37 @@ const ServicePage = () => {
       if (Number(item.unitPrice) < 0) {
         nextErrors[`billItems.${index}.unitPrice`] = 'Unit price cannot be negative.';
       }
+      if (item.partReminderEnabled) {
+        if (!String(item.name || '').trim()) {
+          nextErrors[`billItems.${index}.partReminderName`] = 'Item name is required for reminders.';
+        }
+        if (!item.partReminderDate) {
+          nextErrors[`billItems.${index}.partReminderDate`] = 'Reminder date is required.';
+        }
+        if (!item.partReminderTime) {
+          nextErrors[`billItems.${index}.partReminderTime`] = 'Reminder time is required.';
+        }
+        if (item.partReminderDueOdometer !== '' && Number(item.partReminderDueOdometer) < 0) {
+          nextErrors[`billItems.${index}.partReminderDueOdometer`] = 'Reminder odometer cannot be negative.';
+        }
+      }
+    });
+
+    (form.reminderOnlyParts || []).forEach((item, index) => {
+      if (!String(item.name || '').trim()) {
+        nextErrors[`reminderOnlyParts.${index}.name`] = 'Part name is required.';
+      }
+      if (item.partReminderEnabled) {
+        if (!item.partReminderDate) {
+          nextErrors[`reminderOnlyParts.${index}.partReminderDate`] = 'Reminder date is required.';
+        }
+        if (!item.partReminderTime) {
+          nextErrors[`reminderOnlyParts.${index}.partReminderTime`] = 'Reminder time is required.';
+        }
+        if (item.partReminderDueOdometer !== '' && Number(item.partReminderDueOdometer) < 0) {
+          nextErrors[`reminderOnlyParts.${index}.partReminderDueOdometer`] = 'Reminder odometer cannot be negative.';
+        }
+      }
     });
 
     setErrors(nextErrors);
@@ -674,6 +1123,19 @@ const ServicePage = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!validateForm()) return;
+    if (modalMode === 'edit' && remindersLoading) {
+      toast.addToast('Please wait for reminders to finish loading before saving.', 'warning');
+      return;
+    }
+
+    const normalizedBillItems = billingSnapshot.preview.billItems.map((item, index) => ({
+      name: String(item.name || '').trim(),
+      itemType: item.itemType || 'service',
+      quantity: Number(item.quantity) || 1,
+      unitPrice: Number(item.unitPrice) || 0,
+      lineTotal: (Number(item.quantity) || 1) * (Number(item.unitPrice) || 0),
+      serviceItemKey: form.billItems[index]?.serviceItemKey || createServiceItemKey(vehicleId, item, index),
+    }));
 
     const payload = {
       vehicleId,
@@ -683,26 +1145,155 @@ const ServicePage = () => {
       description: form.description.trim() || undefined,
       nextServiceDue: form.nextServiceDue || undefined,
       nextServiceOdometer: form.nextServiceOdometer !== '' ? Number(form.nextServiceOdometer) : undefined,
-      billItems: billingSnapshot.preview.billItems.map((item) => ({
-        name: String(item.name || '').trim(),
-        itemType: item.itemType || 'service',
-        quantity: Number(item.quantity) || 1,
-        unitPrice: Number(item.unitPrice) || 0,
-        lineTotal: (Number(item.quantity) || 1) * (Number(item.unitPrice) || 0),
-      })),
+      billItems: normalizedBillItems,
       pricingSummary: billingSnapshot.pricingSummary,
       taxBreakdown: billingSnapshot.taxBreakdown,
     };
 
+    const syncRemindersForService = async (serviceRecord) => {
+      if (!serviceRecord) return { created: 0, updated: 0, cancelled: 0 };
+
+      const activeReminders = (serviceReminders || []).filter((reminder) => reminder.status !== 'CANCELLED');
+      const remindersById = new Map(activeReminders.map((reminder) => [reminder.id || reminder._id, reminder]));
+      const usedReminderIds = new Set();
+      let created = 0;
+      let updated = 0;
+      let cancelled = 0;
+
+      const upsertReminder = async (existingReminder, reminderPayload) => {
+        if (existingReminder?.id || existingReminder?._id) {
+          await reminderService.updateReminder(existingReminder.id || existingReminder._id, reminderPayload);
+          usedReminderIds.add(existingReminder.id || existingReminder._id);
+          updated += 1;
+          return;
+        }
+
+        await reminderService.createReminder(reminderPayload);
+        created += 1;
+      };
+
+      const cancelReminder = async (existingReminder, cancelReason) => {
+        if (!existingReminder?.id && !existingReminder?._id) return;
+        await reminderService.cancelReminder(existingReminder.id || existingReminder._id, { cancelReason });
+        usedReminderIds.add(existingReminder.id || existingReminder._id);
+        cancelled += 1;
+      };
+
+      const buildExistingReminderLookup = (item, rowType) => {
+        if (item.partReminderId && remindersById.has(item.partReminderId)) {
+          return remindersById.get(item.partReminderId);
+        }
+
+        return activeReminders.find((reminder) => {
+          const reminderId = reminder.id || reminder._id;
+          if (usedReminderIds.has(reminderId)) return false;
+          if (reminder.reminderType !== 'PART') return false;
+          if (item.serviceItemKey && reminder.serviceItemKey === item.serviceItemKey) return true;
+          if (rowType === 'reminder-only') return false;
+          if (!item.serviceItemKey) {
+            return String(reminder.sourceItemName || '').trim().toLowerCase() === String(item.name || '').trim().toLowerCase();
+          }
+          return false;
+        });
+      };
+
+      const fullServiceReminder = activeReminders.find(
+        (reminder) =>
+          reminder.reminderType === 'FULL_SERVICE' &&
+          String(reminder.serviceId || '') === String(getServiceRecordId(serviceRecord))
+      );
+      const fullServicePayload = form.fullServiceReminderEnabled ? buildFullServiceReminderPayload(serviceRecord) : null;
+
+      if (fullServicePayload) {
+        const updatePayload = buildReminderSyncPayload(fullServiceReminder, fullServicePayload);
+        if (updatePayload) {
+          await upsertReminder(fullServiceReminder, updatePayload);
+        } else if (!fullServiceReminder) {
+          await upsertReminder(null, fullServicePayload);
+        } else {
+          usedReminderIds.add(fullServiceReminder.id || fullServiceReminder._id);
+        }
+      } else if (fullServiceReminder) {
+        await cancelReminder(fullServiceReminder, 'USER_CANCELLED');
+      }
+
+      const combinedRows = [
+        ...(form.billItems || []).map((item, index) => ({ rowType: 'bill', item: { ...item, isBillable: true }, index })),
+        ...(form.reminderOnlyParts || []).map((item, index) => ({ rowType: 'reminder-only', item: { ...item, isBillable: false }, index })),
+      ];
+
+      for (const { rowType, item, index } of combinedRows) {
+        const name = String(item.name || '').trim();
+        const serviceItemKey = item.serviceItemKey || createServiceItemKey(getServiceRecordId(serviceRecord), item, index);
+        const existingReminder = buildExistingReminderLookup(item, rowType);
+
+        if (!item.partReminderEnabled) {
+          if (existingReminder) {
+            await cancelReminder(existingReminder, 'USER_CANCELLED');
+          }
+          continue;
+        }
+
+        if (!name) {
+          throw new Error('Part reminder item name is required.');
+        }
+
+        const reminderPayload = buildPartReminderPayload({ ...item, name, serviceItemKey, isBillable: rowType === 'bill' }, serviceRecord);
+
+        if (reminderPayload?.error) {
+          throw new Error(reminderPayload.error);
+        }
+
+        const updatePayload = buildReminderSyncPayload(existingReminder, reminderPayload);
+        if (updatePayload) {
+          await upsertReminder(existingReminder, updatePayload);
+        } else if (!existingReminder) {
+          await upsertReminder(null, reminderPayload);
+        } else {
+          usedReminderIds.add(existingReminder.id || existingReminder._id);
+        }
+      }
+
+      const stalePartReminders = activeReminders.filter((reminder) => {
+        const reminderId = reminder.id || reminder._id;
+        return reminder.reminderType === 'PART' && !usedReminderIds.has(reminderId);
+      });
+
+      for (const reminder of stalePartReminders) {
+        await cancelReminder(reminder, 'SOURCE_ITEM_REMOVED');
+      }
+
+      return { created, updated, cancelled };
+    };
+
     try {
       setSaving(true);
-      if (modalMode === 'edit' && selectedService) {
-        await serviceService.update(selectedService.id || selectedService._id, payload);
+      let savedService;
+      const isEditing = modalMode === 'edit' && selectedService;
+
+      if (isEditing) {
+        savedService = await serviceService.update(selectedService.id || selectedService._id, payload);
         toast.addToast('Service record updated successfully.', 'success');
       } else {
-        const createdService = await serviceService.create(payload);
+        savedService = await serviceService.create(payload);
         toast.addToast('Service record added successfully.', 'success');
-        const nextService = createdService?.newService || createdService?.service || createdService;
+      }
+
+      const nextService = savedService?.newService || savedService?.service || savedService;
+
+      try {
+        const reminderSummary = await syncRemindersForService(nextService);
+        if ((reminderSummary.created + reminderSummary.updated + reminderSummary.cancelled) > 0) {
+          toast.addToast(
+            `Reminder sync complete: ${reminderSummary.created} created, ${reminderSummary.updated} updated, ${reminderSummary.cancelled} cancelled.`,
+            'success'
+          );
+        }
+      } catch (reminderError) {
+        toast.addToast(reminderError.message || 'Service saved, but reminder sync failed.', 'warning');
+      }
+
+      if (!isEditing) {
         setRecentCreatedService(nextService);
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem(pendingBillStorageKey, JSON.stringify({
@@ -711,11 +1302,12 @@ const ServicePage = () => {
           }));
         }
       }
+
       saveServiceTypeToHistory(payload.serviceType);
       closeModal(true);
       await loadServices();
     } catch (error) {
-      toast.addToast(error.response?.data?.message || 'Unable to save service record.', 'error');
+      toast.addToast(error.response?.data?.message || error.message || 'Unable to save service record.', 'error');
     } finally {
       setSaving(false);
     }
@@ -1400,6 +1992,64 @@ const ServicePage = () => {
                           <strong>{formatMoneyValue(lineTotal)}</strong>
                         </div>
                       </div>
+                      <div className="form-field form-field--full">
+                        <label className="form-field__label" htmlFor={`billItems.${index}.partReminderEnabled`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            id={`billItems.${index}.partReminderEnabled`}
+                            name={`billItems.${index}.partReminderEnabled`}
+                            type="checkbox"
+                            checked={Boolean(item.partReminderEnabled)}
+                            onChange={(event) => updateBillItemField(index, 'partReminderEnabled', event.target.checked)}
+                            disabled={saving}
+                          />
+                          Add part reminder for this item
+                        </label>
+                        {item.partReminderEnabled && (
+                          <div style={{ display: 'grid', gap: '0.85rem', marginTop: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+                            <FormField
+                              label="Reminder date"
+                              name={`billItems.${index}.partReminderDate`}
+                              type="date"
+                              value={item.partReminderDate}
+                              onChange={(event) => updateBillItemField(index, 'partReminderDate', event.target.value)}
+                              error={errors[`billItems.${index}.partReminderDate`]}
+                              disabled={saving}
+                            />
+                            <FormField
+                              label="Reminder time"
+                              name={`billItems.${index}.partReminderTime`}
+                              type="time"
+                              value={item.partReminderTime}
+                              onChange={(event) => updateBillItemField(index, 'partReminderTime', event.target.value)}
+                              error={errors[`billItems.${index}.partReminderTime`]}
+                              disabled={saving}
+                            />
+                            <FormField
+                              label="Due odometer"
+                              name={`billItems.${index}.partReminderDueOdometer`}
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={item.partReminderDueOdometer}
+                              onChange={(event) => updateBillItemField(index, 'partReminderDueOdometer', event.target.value)}
+                              error={errors[`billItems.${index}.partReminderDueOdometer`]}
+                              disabled={saving}
+                            />
+                            <FormField
+                              className="form-field--full"
+                              as="textarea"
+                              rows={3}
+                              label="Reminder notes"
+                              name={`billItems.${index}.partReminderNotes`}
+                              value={item.partReminderNotes}
+                              onChange={(event) => updateBillItemField(index, 'partReminderNotes', event.target.value)}
+                              error={errors[`billItems.${index}.partReminderNotes`]}
+                              placeholder="Optional reminder notes"
+                              disabled={saving}
+                            />
+                          </div>
+                        )}
+                      </div>
                       <div className="form-actions">
                         <Button
                           type="button"
@@ -1415,6 +2065,136 @@ const ServicePage = () => {
                   </div>
                 );
               })}
+            </div>
+
+            <div
+              className="ui-card"
+              style={{
+                marginTop: '1rem',
+                border: '1px solid rgba(16, 185, 129, 0.18)',
+                background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(255, 255, 255, 0.98))',
+              }}
+            >
+              <div className="ui-card__body" style={{ display: 'grid', gap: '0.85rem' }}>
+                <div className="form-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <span className="form-field__label" style={{ marginBottom: 0 }}>Reminder-only parts</span>
+                    <p className="ui-card__description" style={{ margin: '0.25rem 0 0' }}>
+                      Add reminder-only parts here. These do not affect the bill total.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" icon="bi-plus-lg" onClick={addReminderOnlyPart} disabled={saving}>
+                    Add reminder-only part
+                  </Button>
+                </div>
+
+                {remindersLoading && (
+                  <p className="form-field__helper" style={{ margin: 0 }}>
+                    Loading existing reminders...
+                  </p>
+                )}
+
+                {(form.reminderOnlyParts || []).length === 0 ? (
+                  <p className="ui-card__description" style={{ margin: 0 }}>
+                    No reminder-only parts added yet.
+                  </p>
+                ) : (
+                  <div style={{ display: 'grid', gap: '0.85rem' }}>
+                    {form.reminderOnlyParts.map((item, index) => (
+                      <div
+                        key={item.id || item.serviceItemKey || index}
+                        className="ui-card"
+                        style={{
+                          border: '1px solid rgba(148, 163, 184, 0.18)',
+                          background: 'rgba(255, 255, 255, 0.82)',
+                        }}
+                      >
+                        <div className="ui-card__body" style={{ display: 'grid', gap: '0.85rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+                          <FormField
+                            className="form-field--full"
+                            label="Part name"
+                            name={`reminderOnlyParts.${index}.name`}
+                            value={item.name}
+                            onChange={(event) => updateReminderOnlyPartField(index, 'name', event.target.value)}
+                            error={errors[`reminderOnlyParts.${index}.name`]}
+                            placeholder="Brake pads"
+                            disabled={saving}
+                          />
+                          <div className="form-field form-field--full">
+                            <label className="form-field__label" htmlFor={`reminderOnlyParts.${index}.partReminderEnabled`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <input
+                                id={`reminderOnlyParts.${index}.partReminderEnabled`}
+                                name={`reminderOnlyParts.${index}.partReminderEnabled`}
+                                type="checkbox"
+                                checked={Boolean(item.partReminderEnabled)}
+                                onChange={(event) => updateReminderOnlyPartField(index, 'partReminderEnabled', event.target.checked)}
+                                disabled={saving}
+                              />
+                              Enable reminder
+                            </label>
+                          </div>
+                          {item.partReminderEnabled && (
+                            <>
+                              <FormField
+                                label="Reminder date"
+                                name={`reminderOnlyParts.${index}.partReminderDate`}
+                                type="date"
+                                value={item.partReminderDate}
+                                onChange={(event) => updateReminderOnlyPartField(index, 'partReminderDate', event.target.value)}
+                                error={errors[`reminderOnlyParts.${index}.partReminderDate`]}
+                                disabled={saving}
+                              />
+                              <FormField
+                                label="Reminder time"
+                                name={`reminderOnlyParts.${index}.partReminderTime`}
+                                type="time"
+                                value={item.partReminderTime}
+                                onChange={(event) => updateReminderOnlyPartField(index, 'partReminderTime', event.target.value)}
+                                error={errors[`reminderOnlyParts.${index}.partReminderTime`]}
+                                disabled={saving}
+                              />
+                              <FormField
+                                label="Due odometer"
+                                name={`reminderOnlyParts.${index}.partReminderDueOdometer`}
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={item.partReminderDueOdometer}
+                                onChange={(event) => updateReminderOnlyPartField(index, 'partReminderDueOdometer', event.target.value)}
+                                error={errors[`reminderOnlyParts.${index}.partReminderDueOdometer`]}
+                                disabled={saving}
+                              />
+                              <FormField
+                                className="form-field--full"
+                                as="textarea"
+                                rows={3}
+                                label="Reminder notes"
+                                name={`reminderOnlyParts.${index}.partReminderNotes`}
+                                value={item.partReminderNotes}
+                                onChange={(event) => updateReminderOnlyPartField(index, 'partReminderNotes', event.target.value)}
+                                error={errors[`reminderOnlyParts.${index}.partReminderNotes`]}
+                                placeholder="Optional reminder notes"
+                                disabled={saving}
+                              />
+                            </>
+                          )}
+                          <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              icon="bi-trash"
+                              onClick={() => removeReminderOnlyPart(index)}
+                              disabled={saving}
+                            >
+                              Remove part
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div
@@ -1473,6 +2253,79 @@ const ServicePage = () => {
             </div>
           </div>
           <FormField label="Next service due" name="nextServiceDue" type="date" value={form.nextServiceDue} onChange={updateField} disabled={saving} />
+
+          <div className="ui-card" style={{ border: '1px solid rgba(59, 130, 246, 0.18)', background: 'rgba(255, 255, 255, 0.92)' }}>
+            <div className="ui-card__body" style={{ display: 'grid', gap: '0.85rem' }}>
+              <div className="form-field">
+                <label className="form-field__label" htmlFor="fullServiceReminderEnabled" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    id="fullServiceReminderEnabled"
+                    name="fullServiceReminderEnabled"
+                    type="checkbox"
+                    checked={form.fullServiceReminderEnabled}
+                    onChange={updateField}
+                    disabled={saving}
+                  />
+                  Enable full service reminder
+                </label>
+                <p className="form-field__helper" style={{ marginTop: '0.25rem' }}>
+                  Schedule a reminder for the whole vehicle/service cycle.
+                </p>
+              </div>
+
+              {form.fullServiceReminderEnabled && (
+                <div style={{ display: 'grid', gap: '0.85rem', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+                  <FormField
+                    label="Reminder date"
+                    name="fullServiceReminderDate"
+                    type="date"
+                    value={form.fullServiceReminderDate}
+                    onChange={updateField}
+                    error={errors.fullServiceReminderDate}
+                    disabled={saving}
+                  />
+                  <FormField
+                    label="Reminder time"
+                    name="fullServiceReminderTime"
+                    type="time"
+                    value={form.fullServiceReminderTime}
+                    onChange={updateField}
+                    error={errors.fullServiceReminderTime}
+                    disabled={saving}
+                  />
+                  <FormField
+                    label="Due odometer"
+                    name="fullServiceReminderDueOdometer"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={form.fullServiceReminderDueOdometer}
+                    onChange={updateField}
+                    error={errors.fullServiceReminderDueOdometer}
+                    placeholder="130000"
+                    disabled={saving}
+                  />
+                  <FormField
+                    className="form-field--full"
+                    as="textarea"
+                    rows={3}
+                    label="Reminder notes"
+                    name="fullServiceReminderNotes"
+                    value={form.fullServiceReminderNotes}
+                    onChange={updateField}
+                    error={errors.fullServiceReminderNotes}
+                    placeholder="Optional reminder notes"
+                    disabled={saving}
+                  />
+                </div>
+              )}
+              {remindersLoading && (
+                <p className="form-field__helper" style={{ margin: 0 }}>
+                  Loading existing reminders...
+                </p>
+              )}
+            </div>
+          </div>
 
           <FormField className="form-field--full" as="textarea" rows={4} label="Description" name="description" value={form.description} onChange={updateField} placeholder="Work completed, parts replaced, notes for next visit" disabled={saving} />
         </form>
