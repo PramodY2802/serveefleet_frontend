@@ -192,8 +192,8 @@ export const ReminderAlertsProvider = ({ children }) => {
         tag: snapshot,
         renotify: false,
         requireInteraction: false,
-        icon: '/logo192.png',
-        badge: '/logo192.png',
+        icon: '/autopulse.png',
+        badge: '/autopulse.png',
         data: { url: '/reminders' },
       };
 

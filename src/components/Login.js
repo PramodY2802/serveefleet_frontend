@@ -79,7 +79,7 @@ const LoginPage = () => {
         <div className="card-body">
           <center>
             <img
-            src="/autopluse.png"
+            src="/autopulse.png"
             alt="AutoPulse Logo"
             className="mb-3"
             style={{ width: "130px", height: "auto" }}
