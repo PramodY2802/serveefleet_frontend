@@ -176,10 +176,10 @@ const calculateBillingPreview = (billItems = [], discountAmount = 0, gstRate = 0
 
   return {
     billItems: normalizedItems,
-    subtotal,
-    discountAmount: safeDiscount,
-    taxAmount,
-    grandTotal,
+    subtotal: Number(subtotal.toFixed(2)),
+    discountAmount: Number(safeDiscount.toFixed(2)),
+    taxAmount: Number(taxAmount.toFixed(2)),
+    grandTotal: Number(grandTotal.toFixed(2)),
   };
 };
 
@@ -222,12 +222,15 @@ const buildBillingSnapshot = (billItems = [], discountAmount = 0, gstRate = 0, c
   const preview = calculateBillingPreview(billItems, discountAmount, gstRate);
   const taxableAmount = Math.max(0, preview.subtotal - preview.discountAmount);
   const normalizedCurrency = currency || 'INR';
+  const taxAmount = Number(preview.taxAmount.toFixed(2));
+  const cgstAmount = Number((taxAmount / 2).toFixed(2));
+  const sgstAmount = Number((taxAmount - cgstAmount).toFixed(2));
 
   return {
     pricingSummary: {
       subtotal: preview.subtotal,
       discountAmount: preview.discountAmount,
-      taxAmount: preview.taxAmount,
+      taxAmount,
       grandTotal: preview.grandTotal,
       currency: normalizedCurrency,
       gstRate: Number(gstRate) || 0,
@@ -235,10 +238,10 @@ const buildBillingSnapshot = (billItems = [], discountAmount = 0, gstRate = 0, c
     taxBreakdown: {
       taxableAmount,
       gstRate: Number(gstRate) || 0,
-      cgstAmount: Number((preview.taxAmount / 2).toFixed(2)),
-      sgstAmount: Number((preview.taxAmount / 2).toFixed(2)),
+      cgstAmount,
+      sgstAmount,
       igstAmount: 0,
-      taxAmount: Number(preview.taxAmount.toFixed(2)),
+      taxAmount,
     },
     preview,
   };
